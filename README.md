@@ -1,49 +1,51 @@
 # cross_embody
 
 Decoupling Decision and Control for Cross-Embodiment Learning.
-单一策略于 Franka 模拟训练,zero-shot 部署至 UR5e 实机,无需任务示范。
+A single policy trained in Franka simulation, deployed zero-shot to a UR5e real robot without task demonstrations.
 
-## 目录结构
+## Directory Structure
 
 ```
 cross_embody/
 ├── configs/
-│   ├── dims.yaml         # 维度契约 (Interface Contract):所有模组共用,不得各自定义
-│   └── robots.yaml       # 机器人注册表:加新手臂只需在此加 entry + 放 URDF
+│   ├── dims.yaml         # Interface contract: shared dim spec, no module redefines it
+│   └── robots.yaml       # Robot registry: add a new arm by adding an entry + a URDF
 ├── fk_encoder/
-│   └── fk_encoder.py     # Layer 1: FK Encoder (非学习,纯几何),输出 19 维物理特征
+│   └── fk_encoder.py     # Layer 1: FK Encoder (non-learnable, pure geometry), 19-dim output
 ├── tests/
-│   └── test_fk_fr3.py    # FR3 验证
+│   └── test_fk_fr3.py    # FR3 validation
 ├── urdfs/
 │   └── franka_description/fr3.urdf
-├── policy_io/            # (待:Stage 2 transformer 介面)
-└── scripts/              # (待:训练脚本)
+├── policy_io/            # (TODO: Stage 2 transformer interface)
+└── scripts/              # (TODO: training scripts)
 ```
 
 ## Layer 1: FK Encoder
 
-非学习、设定驱动的前向运动学编码器。把任意 DoF 的手臂关节角映射成统一的
-19 维物理特征,让不同形态机器人在同一空间可比较。
+A non-learnable, config-driven forward-kinematics encoder. It maps joint angles of
+an arbitrary-DoF arm into a unified 19-dim physical feature vector, so robots of
+different morphologies become comparable in the same space.
 
-输出 19 维: `[ p_ee(7) | v_kp(9) | m(3) ]`
-- `p_ee` : EE position(3) + quaternion(4),以 base 为原点
-- `v_kp` : 三个 keyvector (v_SE, v_SW, v_SEE),以 upper-arm 长度 L 正规化
-- `m`    : `[arm_ratio, workspace_r, dof_norm]`,结构常数,init 算一次
+Output (19-dim): `[ p_ee(7) | v_kp(9) | m(3) ]`
+- `p_ee` : EE position(3) + quaternion(4), expressed in the base frame
+- `v_kp` : three keyvectors (v_SE, v_SW, v_SEE), normalized by upper-arm length L
+- `m`    : `[arm_ratio, workspace_r, dof_norm]`, structural constants computed once at init
 
-### 加新手臂 (零改程式)
-1. 放 URDF 到 `urdfs/<robot>/`
-2. 在 `configs/robots.yaml` 加一个 entry,指定 `urdf` / `root_link` / `arm_dof` /
+### Adding a new arm (no code changes)
+1. Place the URDF under `urdfs/<robot>/`
+2. Add an entry in `configs/robots.yaml` specifying `urdf` / `root_link` / `arm_dof` /
    `key_links` (shoulder/elbow/wrist/ee) / `base_rotation`
-3. 若该机器人 base 轴向与统一约定不同,填 `base_rotation` (固定旋转矩阵)
+3. If the robot's base axes differ from the unified convention, set `base_rotation`
+   (a fixed rotation matrix)
 
-## 执行测试
+## Running the test
 
 ```bash
 conda activate cross_embody
 cd ~/cross_embody
-python tests/test_fk_fr3.py    # 从任何目录执行皆可
+python tests/test_fk_fr3.py    # runnable from any directory
 ```
 
-## 环境
+## Environment
 - conda env: `cross_embody` (Python 3.10)
-- 主要相依: `torch`, `pytorch_kinematics`, `numpy`, `pyyaml`
+- Key dependencies: `torch`, `pytorch_kinematics`, `numpy`, `pyyaml`

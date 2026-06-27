@@ -1,0 +1,34 @@
+# dims.yaml — Interface Contract
+# 維度定義
+
+fk_encoder:
+  output_dim: 19
+  layout:
+    p_ee: 7        # EE position(3) + quaternion(4)
+    v_kp: 9        # keyvectors v_SE, v_SW, v_SEE,各3维,以 upper arm length L 正规化
+    m: 3           # arm_ratio, workspace_r, dof_norm
+
+latent:
+  z_dim: 64        # z_learned / z̃_learned
+
+intention:
+  v_dim: 3         # v_intention
+
+policy:            # transformer
+  input_dim: 67    # z̃_learned(64) + v_intention(3)
+  output_dim: 67   # dz_t,自回归 latent 更新量
+
+decoder:
+  latent_in: 64    # Z_{t+1}
+  m_in: 3          # m
+  q_dim:           # 关节自由度,跨机器人不同
+    franka: 7
+    ur5e: 6
+    kuka: 7
+    so100: 5       # TODO: 确认 SO-100 实际 DoF
+
+contrastive:
+  positive_threshold_m: 0.05   # InfoNCE 正样本:p_ee 距离 < 5cm
+
+validation:
+  dtg_threshold_m: 0.01        # Distance to Goal < 1cm

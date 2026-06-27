@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+
+# 环境 / IDE
+.venv/
+.vscode/
+.idea/
+
+# 训练产物
+*.ckpt
+*.pth
+runs/
+logs/
+wandb/
+
+# URDF mesh:245MB,FK 不需要,只追踪 .urdf 本身
+urdfs/**/meshes/
+urdfs/franka_description/.git/
+*.dae
+*.stl
+*.STL
+
+# OS
+.DS_Store

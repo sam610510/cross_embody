@@ -1,0 +1,56 @@
+# ============================================================
+# robots.yaml — 机器人注册表 (Robot Registry)
+# 加新手臂 = 在此加一个 entry + 放一份 URDF。fk_encoder.py 不需修改。
+#
+# 每台机器人需指定:
+#   urdf        : URDF 档路径 (相对 project root 或绝对路径)
+#   root_link   : FK 参考原点 (统一以各机器人 base 为原点)
+#   arm_dof     : 手臂自由度 (不含夹爪/finger),用于补齐 actuated joints
+#   key_links   : shoulder / elbow / wrist / ee 对应的 link 名称
+#   base_rotation: 3x3 固定旋转,把此机器人 base 轴向转到统一约定。
+#                  默认单位矩阵 (轴向已标准者免动)。
+# ============================================================
+
+fr3:
+  urdf: urdfs/franka_description/fr3.urdf
+  root_link: base
+  arm_dof: 7
+  key_links:
+    shoulder: fr3_link2
+    elbow:    fr3_link4
+    wrist:    fr3_link6
+    ee:       fr3_hand_tcp
+  base_rotation:
+    - [1.0, 0.0, 0.0]
+    - [0.0, 1.0, 0.0]
+    - [0.0, 0.0, 1.0]
+
+# --- 模板:UR5e (6轴),URDF 到位后填写 ---
+# ur5e:
+#   urdf: urdfs/ur5e/ur5e.urdf
+#   root_link: base_link
+#   arm_dof: 6
+#   key_links:
+#     shoulder: shoulder_link      # 待确认
+#     elbow:    forearm_link       # 待确认
+#     wrist:    wrist_2_link       # 待确认
+#     ee:       tool0              # 待确认 (UR 的 TCP frame)
+#   base_rotation:                 # UR base 轴向若不同,在此填固定旋转
+#     - [1.0, 0.0, 0.0]
+#     - [0.0, 1.0, 0.0]
+#     - [0.0, 0.0, 1.0]
+
+# --- 模板:5轴机器人 (如 SO-100),待确认 DoF ---
+# so100:
+#   urdf: urdfs/so100/so100.urdf
+#   root_link: base_link
+#   arm_dof: 5
+#   key_links:
+#     shoulder: ...
+#     elbow:    ...
+#     wrist:    ...
+#     ee:       ...
+#   base_rotation:
+#     - [1.0, 0.0, 0.0]
+#     - [0.0, 1.0, 0.0]
+#     - [0.0, 0.0, 1.0]

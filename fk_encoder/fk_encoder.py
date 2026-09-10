@@ -6,8 +6,9 @@ fk_encoder.py — Layer 1: Forward Kinematics Encoder (non-learnable)
   - 纯几何,无可学习参数。
   - 所有座标以各机器人 base (root_link) 为参考原点。
 
-输出 19 维: [ p_ee(7) | v_kp(9) | m(3) ]
-  p_ee  : EE position(3) + quaternion(4)          [姿态相关,每次 forward 计算]
+输出 21 维: [ p_ee(9) | v_kp(9) | m(3) ]
+  p_ee  : EE position(3) + 6D rotation(6)         [姿态相关,每次 forward 计算]
+          6D rotation = 旋转矩阵前两列 (Zhou 2019 连续表征, 无奇异点, NN 友善)
   v_kp  : 三个 keyvector (v_SE, v_SW, v_SEE),各3维 [姿态相关],以 upper-arm L 正规化
   m     : [arm_ratio, workspace_r, dof_norm]        [结构常数,init 算一次]
 
@@ -47,7 +48,7 @@ def _suppress_stderr():
 
 
 class FKEncoder:
-    OUTPUT_DIM = 19
+    OUTPUT_DIM = 21
     DOF_NORM_BASE = 6.0
 
     def __init__(self, robot_name, robots_yaml, project_root="", device="cpu", dtype=torch.float32):
@@ -94,11 +95,11 @@ class FKEncoder:
         return torch.cat([q_arm, pad], dim=1)
 
     def _key_frames(self, q_arm):
-        """回传 shoulder/elbow/wrist/ee 的 (positions, ee_quaternion),已套 base_rotation。
-        positions: dict role -> (B,3);ee_quat: (B,4)。"""
+        """回传 shoulder/elbow/wrist/ee 的 (positions, ee_rot6d),已套 base_rotation。
+        positions: dict role -> (B,3);ee_rot6d: (B,6) 旋转矩阵前两列。"""
         full = self._full_q(q_arm)
         ret = self.chain.forward_kinematics(full)   # dict: link -> Transform3d
-        pos, ee_quat = {}, None
+        pos, ee_rot6d = {}, None
         for role, link in self.key_links.items():
             M = ret[link].get_matrix()              # (B,4,4)
             p = M[:, :3, 3]                          # (B,3)
@@ -106,9 +107,12 @@ class FKEncoder:
             pos[role] = p
             if role == "ee":
                 Rm = M[:, :3, :3]                    # (B,3,3)
-                Rm = self.base_R.unsqueeze(0) @ Rm   # 旋转也对齐
-                ee_quat = pk.matrix_to_quaternion(Rm)  # (B,4) wxyz
-        return pos, ee_quat
+                Rm = self.base_R.unsqueeze(0) @ Rm   # 旋转也对齐 (B,3,3)
+                # 6D rotation = 旋转矩阵前两列 (Zhou 2019), 连续无奇异点
+                col0 = Rm[:, :, 0]                   # (B,3)
+                col1 = Rm[:, :, 1]                   # (B,3)
+                ee_rot6d = torch.cat([col0, col1], dim=1)  # (B,6)
+        return pos, ee_rot6d
 
     def _precompute_structural(self):
         """在 q=0 算 L、arm_ratio、workspace_r、dof_norm。皆结构常数。"""
@@ -133,17 +137,17 @@ class FKEncoder:
 
     # ---------- public ----------
     def forward(self, q_arm):
-        """q_arm: (B, arm_dof) 或 (arm_dof,)。回传 (B,19)。"""
+        """q_arm: (B, arm_dof) 或 (arm_dof,)。回传 (B,21)。"""
         if q_arm.dim() == 1:
             q_arm = q_arm.unsqueeze(0)
         q_arm = q_arm.to(device=self.device, dtype=self.dtype)
         B = q_arm.shape[0]
 
-        pos, ee_quat = self._key_frames(q_arm)
+        pos, ee_rot6d = self._key_frames(q_arm)
         S, E, W, EE = pos["shoulder"], pos["elbow"], pos["wrist"], pos["ee"]
 
-        # p_ee: position(3) + quaternion(4)
-        p_ee = torch.cat([EE, ee_quat], dim=1)                # (B,7)
+        # p_ee: position(3) + 6D rotation(6)
+        p_ee = torch.cat([EE, ee_rot6d], dim=1)               # (B,9)
 
         # v_kp: 三个 keyvector,以 L 正规化
         v_SE  = (E  - S) / self.L
@@ -154,7 +158,7 @@ class FKEncoder:
         # m: 结构常数,broadcast 到 batch
         m = self.m.unsqueeze(0).expand(B, -1)                 # (B,3)
 
-        out = torch.cat([p_ee, v_kp, m], dim=1)               # (B,19)
+        out = torch.cat([p_ee, v_kp, m], dim=1)               # (B,21)
         assert out.shape[1] == self.OUTPUT_DIM
         return out
 

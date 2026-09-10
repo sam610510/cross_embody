@@ -2,14 +2,14 @@
 # 維度定義
 
 fk_encoder:
-  output_dim: 19
+  output_dim: 21
   layout:
-    p_ee: 7        # EE position(3) + quaternion(4)
+    p_ee: 9        # EE position(3) + 6D posture(6)
     v_kp: 9        # keyvectors v_SE, v_SW, v_SEE,各3维,以 upper arm length L 正规化
     m: 3           # arm_ratio, workspace_r, dof_norm
 
 latent:
-  z_dim: 64        # z_learned / z̃_learned
+  z_dim: 128        # z_learned / z̃_learned
 
 intention:
   v_dim: 3         # v_intention

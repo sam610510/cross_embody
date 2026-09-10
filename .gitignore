@@ -12,9 +12,12 @@ __pycache__/
 # 训练产物
 *.ckpt
 *.pth
+*.pt
 runs/
 logs/
 wandb/
+checkpoints/
+validation_out/
 
 # URDF mesh:245MB,FK 不需要,只追踪 .urdf 本身
 urdfs/**/meshes/

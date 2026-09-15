@@ -72,5 +72,16 @@ python tests/validate_fk.py    # needs MuJoCo; writes to validation_out/
 ```
 
 ## Environment
-- conda env: `cross_embody` (Python 3.10)
+
+```bash
+conda create -n cross_embody python=3.10 -y
+conda activate cross_embody
+pip install -r requirements.txt
+```
 - Key dependencies: `torch`, `pytorch_kinematics`, `numpy`, `pyyaml`, `mujoco` (validation only)
+- `fr3_pick_gen/` also expects `mujoco_menagerie/` and `robosuite/` cloned as sibling
+  directories under the project root (asset sources only, not installed as packages):
+  ```bash
+  git clone https://github.com/google-deepmind/mujoco_menagerie.git
+  git clone https://github.com/ARISE-Initiative/robosuite.git
+  ```

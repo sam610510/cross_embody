@@ -28,3 +28,11 @@ urdfs/franka_description/.git/
 
 # OS
 .DS_Store
+
+# 第三方 repo,另一台伺服器自行 git clone,不进版控
+/mujoco_menagerie/
+/robosuite/
+
+# fr3_pick_gen 产生的大型资料集/影片,只追踪程式码
+fr3_pick_gen/dataset/
+fr3_pick_gen/viz/

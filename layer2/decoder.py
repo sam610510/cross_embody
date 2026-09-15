@@ -1,16 +1,3 @@
-"""
-layer2/decoder.py — Layer 2: Robot-specific Decoder (latent -> 关节角)
-======================================================================
-角色 (架构核心): decoder 只做「latent <-> 关节角」的翻译, 不预测未来。
-  - Stage 1: z_t + m -> q_t   (重建, autoencoder)
-  - Stage 2: z_{t+1} + m -> q_{t+1}  (transformer 给出 z_{t+1}, decoder 翻译)
-  预测未来是 transformer 的事; decoder 对「现在/未来」一视同仁 = decision/control 解耦。
-
-设计 (已确认):
-  - 输入 z(latent) + m(morphology), 输出 q(arm_dof)
-  - 2 层 MLP
-  - Stage 1 不含 q_t 输入 (A 方案); 之后要「加前一步避免暴冲」时, 再扩输入 (预留 q_prev 参数)
-"""
 import torch
 import torch.nn as nn
 

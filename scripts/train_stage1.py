@@ -1,15 +1,3 @@
-"""
-train_stage1.py — Layer 2 Stage 1: W embedding + Franka Decoder (重建損失)
-==========================================================================
-管線:
-    q_t --FK Encoder--> 21维 --W(取前18维,去m)--> 128维 latent z
-        --Decoder(z, m, q_ref)--> q_t'
-目標: 重建 q_t, 讓 latent 编码足夠資訊, 同时逼 decoder 依赖 latent 而非抄 q_ref。
-
-噪声策略: 固定 q_ref = q + N(0, 0.03)。
-  依据: noise_sweep 扫描显示, 在满足精度 (<10mm) 的设定中,
-        σ=0.03 的 latent reliance 最高 (~x35), 是精度与抗作弊的最佳折衷。
-"""
 import os, sys
 import numpy as np
 import torch

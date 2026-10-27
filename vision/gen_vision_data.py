@@ -102,7 +102,9 @@ def parse_args(argv=None):
     g.add_argument("--n_occ", type=int, default=6, help="occluder slots (box, sphere, cylinder, capsule, bar, ellipsoid)")
     g.add_argument("--p_occ", type=float, default=0.5, help="probability a sample has any occluder")
     g.add_argument("--p_full", type=float, default=0.08, help="probability of fully hiding one object")
-    g.add_argument("--no_dr", action="store_true", help="disable appearance randomization (clean set)")
+    g.add_argument("--no_dr", action="store_true", help="disable all appearance randomization (clean set)")
+    g.add_argument("--env_dr", default="mild", choices=["none", "mild", "strong"],
+                   help="table/floor/light randomization; the arm is always randomized unless --no_dr")
     g.add_argument("--save_depth", action="store_true")
     return p.parse_args(argv)
 
@@ -548,25 +550,52 @@ class Scene:
             for k, g in enumerate(o.geoms):
                 m.geom_rgba[g, :3] = jitter_colour(rng, o.rgba0[k])
 
-        if self.table_mat >= 0:
-            c = self.mat_rgba0[self.table_mat, :3]
-            tgt = rng.uniform(0, 1, 3) if rng.random() < 0.4 else np.full(3, rng.uniform(0.2, 0.95))
-            m.mat_rgba[self.table_mat, :3] = (1 - (w := rng.uniform(0, 0.7))) * c + w * tgt
-            m.mat_reflectance[self.table_mat] = rng.uniform(0.0, 0.35)   # real top is stainless steel
-        elif self.table >= 0:
-            m.geom_rgba[self.table, :3] = rng.uniform(0.2, 0.95, 3)
-
-        for i in range(m.nlight):
-            m.light_pos[i] = self.light0[0][i] + rng.normal(0, 0.4, 3)
-            m.light_diffuse[i] = np.clip(self.light0[1][i] * rng.uniform(0.5, 1.4) + rng.normal(0, 0.05, 3), 0, 1)
-            m.light_ambient[i] = np.clip(rng.uniform(0, 0.2, 3), 0, 1)
-            m.light_specular[i] = rng.uniform(0, 0.5, 3)
-        m.vis.headlight.diffuse = np.full(3, rng.uniform(0.2, 0.8))
-        m.vis.headlight.ambient = np.full(3, rng.uniform(0.05, 0.4))
+        self.randomize_environment(rng)
 
         m.cam_pos[self.cam] = self.cam_pos0 + rng.normal(0, a.cam_pos_std, 3)
         m.cam_quat[self.cam] = quat_mul(self.cam_quat0, small_rot_quat(rng, np.deg2rad(a.cam_rot_std)))
         m.cam_fovy[self.cam] = self.fovy0 + rng.normal(0, a.fovy_std)
+
+    def randomize_environment(self, rng):
+        """Table, floor and lights. The arm is randomized separately (always on unless --no_dr).
+
+        none   : scene as built
+        mild   : matte table (PVC board, no reflection) with small colour/brightness jitter,
+                 neutral white lights with brightness, position and slight warm/cool variation
+        strong : any table colour, random reflectance, per-channel light colour noise (Tobin-style)
+        """
+        m, a = self.m, self.a
+        lvl = a.env_dr
+        if lvl == "none":
+            return
+        if self.table_mat >= 0:
+            c = self.mat_rgba0[self.table_mat, :3]
+            if lvl == "mild":
+                m.mat_rgba[self.table_mat, :3] = jitter_colour(rng, c, dh=0.02, ds=0.1, dv=0.15)
+                m.mat_reflectance[self.table_mat] = 0.0
+            else:
+                tgt = rng.uniform(0, 1, 3) if rng.random() < 0.4 else np.full(3, rng.uniform(0.2, 0.95))
+                m.mat_rgba[self.table_mat, :3] = (1 - (w := rng.uniform(0, 0.7))) * c + w * tgt
+                m.mat_reflectance[self.table_mat] = rng.uniform(0.0, 0.35)
+        elif self.table >= 0:
+            c = m.geom_rgba[self.table, :3].copy()
+            m.geom_rgba[self.table, :3] = jitter_colour(rng, c, 0.02, 0.1, 0.15) if lvl == "mild" \
+                else rng.uniform(0.2, 0.95, 3)
+
+        for i in range(m.nlight):
+            m.light_pos[i] = self.light0[0][i] + rng.normal(0, 0.3 if lvl == "mild" else 0.4, 3)
+            if lvl == "mild":
+                t = rng.uniform(-1, 1)                       # warm (+) / cool (-) white
+                tint = np.array([1 + 0.06 * t, 1.0, 1 - 0.06 * t])
+                m.light_diffuse[i] = np.clip(self.light0[1][i].mean() * rng.uniform(0.6, 1.3) * tint, 0, 1)
+                m.light_ambient[i] = np.full(3, rng.uniform(0.0, 0.15))
+                m.light_specular[i] = np.full(3, rng.uniform(0.0, 0.3))
+            else:
+                m.light_diffuse[i] = np.clip(self.light0[1][i] * rng.uniform(0.5, 1.4) + rng.normal(0, 0.05, 3), 0, 1)
+                m.light_ambient[i] = np.clip(rng.uniform(0, 0.2, 3), 0, 1)
+                m.light_specular[i] = rng.uniform(0, 0.5, 3)
+        m.vis.headlight.diffuse = np.full(3, rng.uniform(0.25, 0.7) if lvl == "mild" else rng.uniform(0.2, 0.8))
+        m.vis.headlight.ambient = np.full(3, rng.uniform(0.1, 0.3) if lvl == "mild" else rng.uniform(0.05, 0.4))
 
     def place_occluders(self, rng, cam_pos, cube_p, tape_p):
         m, d, a = self.m, self.d, self.a

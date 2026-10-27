@@ -105,6 +105,8 @@ def parse_args(argv=None):
     g.add_argument("--no_dr", action="store_true", help="disable all appearance randomization (clean set)")
     g.add_argument("--env_dr", default="mild", choices=["none", "mild", "strong"],
                    help="table/floor/light randomization; the arm is always randomized unless --no_dr")
+    g.add_argument("--p_shadow", type=float, default=0.2,
+                   help="mild: probability lights cast (faint) shadows; the lab has diffuse ceiling light")
     g.add_argument("--save_depth", action="store_true")
     return p.parse_args(argv)
 
@@ -407,6 +409,7 @@ class Scene:
                             (m.geom_rgba[self.table].copy() if self.table >= 0 else None))
         self.table_refl0 = m.mat_reflectance[self.table_mat] if self.table_mat >= 0 else 0.0
         self.light0 = (m.light_pos.copy(), m.light_diffuse.copy(), m.light_ambient.copy(), m.light_specular.copy())
+        self.shadow0 = m.light_castshadow.copy()
         self.head0 = (np.array(m.vis.headlight.diffuse), np.array(m.vis.headlight.ambient))
         self.group0 = m.geom_group.copy()
         self.mat_rgba0 = m.mat_rgba.copy()
@@ -513,6 +516,7 @@ class Scene:
         m.geom_rgba[self.cube.geoms] = self.cube.rgba0
         m.geom_rgba[self.tape.geoms] = self.tape.rgba0
         m.light_pos[:], m.light_diffuse[:], m.light_ambient[:], m.light_specular[:] = (x.copy() for x in self.light0)
+        m.light_castshadow[:] = self.shadow0
         m.vis.headlight.diffuse, m.vis.headlight.ambient = self.head0
         m.cam_pos[self.cam] = self.cam_pos0
         m.cam_quat[self.cam] = self.cam_quat0
@@ -582,13 +586,16 @@ class Scene:
             m.geom_rgba[self.table, :3] = jitter_colour(rng, c, 0.02, 0.1, 0.15) if lvl == "mild" \
                 else rng.uniform(0.2, 0.95, 3)
 
+        shadow = lvl == "strong" or rng.random() < a.p_shadow
+        m.light_castshadow[:] = self.shadow0 & shadow
         for i in range(m.nlight):
             m.light_pos[i] = self.light0[0][i] + rng.normal(0, 0.3 if lvl == "mild" else 0.4, 3)
             if lvl == "mild":
                 t = rng.uniform(-1, 1)                       # warm (+) / cool (-) white
                 tint = np.array([1 + 0.06 * t, 1.0, 1 - 0.06 * t])
                 m.light_diffuse[i] = np.clip(self.light0[1][i].mean() * rng.uniform(0.6, 1.3) * tint, 0, 1)
-                m.light_ambient[i] = np.full(3, rng.uniform(0.0, 0.15))
+                # with shadows on, more ambient so the shadow stays faint (diffuse room light)
+                m.light_ambient[i] = np.full(3, rng.uniform(0.25, 0.4) if shadow else rng.uniform(0.0, 0.15))
                 m.light_specular[i] = np.full(3, rng.uniform(0.0, 0.3))
             else:
                 m.light_diffuse[i] = np.clip(self.light0[1][i] * rng.uniform(0.5, 1.4) + rng.normal(0, 0.05, 3), 0, 1)

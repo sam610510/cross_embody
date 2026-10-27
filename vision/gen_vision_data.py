@@ -266,7 +266,9 @@ class Obj:
                 if m.jnt_bodyid[j] == self.bid and m.jnt_type[j] == mujoco.mjtJoint.mjJNT_FREE:
                     self.qadr = m.jnt_qposadr[j]
             if self.qadr >= 0:
-                self.pos0, self.quat0 = d.qpos[self.qadr:self.qadr + 3].copy(), d.qpos[self.qadr + 3:self.qadr + 7].copy()
+                # rest pose from the model (qpos0), not from a keyframe: a keyframe written for the bare arm
+                # can leave the free body's qpos at zero, i.e. the cube centre at the table plane
+                self.pos0, self.quat0 = m.qpos0[self.qadr:self.qadr + 3].copy(), m.qpos0[self.qadr + 3:self.qadr + 7].copy()
             elif self.mocap >= 0:
                 self.pos0, self.quat0 = d.mocap_pos[self.mocap].copy(), d.mocap_quat[self.mocap].copy()
             else:
@@ -375,6 +377,9 @@ class Scene:
         self.cube = Obj(m, d, args.cube)
         self.tape = Obj(m, d, args.tape)
         self.cube_half_h = self.cube.pos0[2] - args.table_z if self.cube.bid >= 0 else 0.025
+        if not 0.005 < self.cube_half_h < 0.2:
+            raise SystemExit(f"cube centre {self.cube.pos0[2]:.4f} m is not above table_z {args.table_z} m; "
+                             "check --table_z / --cube")
 
         cid = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_CAMERA, args.cam_name) if args.cam_name else -1
         self.cam = cid if cid >= 0 else mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_CAMERA, "vis_cam")

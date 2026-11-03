@@ -20,7 +20,7 @@ CK=${CK:-checkpoints/decision_core_vision_xyz_K10_bi_l10_h8_s42_x3s4.pt}   # FR3
 EVAL_EPS=${EVAL_EPS:-50}
 EXTRA=${EXTRA:-}                       # extra eval flags, fixed for the whole run (e.g. "--anc_vmax 0.3")
 # the fixed Stage 2 recipe (as for the reported UR5e results: elbow-up poses, keypoint posture term)
-S2_FLAGS=${S2_FLAGS:---elbow_up --s_psi_deg 15 --posture_term swivel}
+S2_FLAGS=${S2_FLAGS:---elbow_up --s_psi_deg 15 --posture_term keypoints}
 PCK=checkpoints/stage2_posture_${ARM}${TAG}.pt
 P="--pick_gen $HOME/cross_embody/fr3_pick_gen/scripts --scene_module build_scene --cam_name d435"
 A="--ee_site tcp_site --cube object --table_geom table_top --width 768 --height 432"

@@ -36,7 +36,7 @@ from decision_core.model import load_frozen_stage1, inverse_decode, tcp_ik
 from decision_core.model_chunk import ChunkRunner
 from decision_core.vision_core import load_vision_core, object_tokens, tcp_tokens, xyz_tokens
 from decision_core.anchor_blend import AnchorBlend, add_args as add_anchor_args
-from decision_core.ur5e_arm import UR5eArm, add_args as add_ur_args, UR_SCENE_FLAGS
+from decision_core.new_arm import NewArm, add_args as add_arm_args, scene_flags, robot_entry
 from decision_core.vision_dataset import KeypointFilter
 from joint_tracker import JointTracker, FR3_TAU, CommandShaper
 from object_latent import load_any_encoder
@@ -65,7 +65,7 @@ ap.add_argument("--chunk_exec", type=int, default=1)
 ap.add_argument("--no_ensemble", action="store_true")
 ap.add_argument("--ens_m", type=float, default=0.1)
 add_anchor_args(ap)
-add_ur_args(ap)
+add_arm_args(ap)
 ap.add_argument("--smooth", type=float, default=0.5)
 ap.add_argument("--accel_steps", type=int, default=8)
 ap.add_argument("--video", type=int, default=0, help="save the d435 view of the first N episodes")
@@ -104,11 +104,15 @@ ap.add_argument("--trace_every", type=int, default=10)
 ap.add_argument("--only", type=int, nargs="*", default=None,
                 help="run only these episode indices (same targets / start poses as in the full run), e.g. --only 5 10 13")
 args, rest = ap.parse_known_args()
-if args.robot == "ur5e":                       # same scene, UR5e + 2F-85 instead of the FR3 (build_scene_ur5e.py)
-    rest = rest + UR_SCENE_FLAGS
-    os.environ["UR_ROBOT"] = args.ur_robot
+if args.robot != "fr3":                        # same scene, the robots.yaml arm instead of the FR3 (build_scene_arm.py)
+    import yaml
+    sys.path.insert(0, os.path.join(R, "scripts"))
+    import train_stage2_align as _TA
+    args.robot = robot_entry(args.robot)
+    rest = rest + scene_flags(yaml.safe_load(open(_TA.ROBOTS_YAML))[args.robot])
+    os.environ["NEW_ARM"] = args.robot
     if args.from_dataset:
-        raise SystemExit("--from_dataset replays FR3 start poses; not available with --robot ur5e")
+        raise SystemExit("--from_dataset replays FR3 start poses; not available with --robot <new arm>")
 g = G.parse_args(rest + ["--n_occ", "0", "--p_distractor", "0"])
 # coord = "xyz" cores: two fixed cameras (camera A drives the physics scene, camera B renders a copy of it),
 # keypoints triangulated to 3D every step -- the same set-up as vision/render_encode_2cam.py
@@ -178,9 +182,9 @@ def main():
         print(f"[vision] coord xyz: cameras A {CAM_A} and B {CAM_B}, 960x540, triangulated; the 'kp err' numbers "
               f"below are 3D errors in mm")
     fk, emb, _, _ = load_frozen_stage1(device=DEV)
-    UR = args.robot == "ur5e"
-    if UR:                                                 # cross-arm: UR5e joints / tracker / gripper / IK
-        arm = UR5eArm(sc, fk, emb, args, DEV, CONTROL_HZ, SIM_HZ, OBJECT_HALF_SIZE)
+    UR = args.robot != "fr3"                               # (UR = any new arm)
+    if UR:                                                 # cross-arm: the new arm's joints / tracker / gripper / IK
+        arm = NewArm(sc, fk, emb, args, DEV, CONTROL_HZ, SIM_HZ, OBJECT_HALF_SIZE)
         qadr, vadr, trk = arm.qadr, arm.vadr, arm.trk
         jnt_ids = arm_act = grip_act = g_qadr = lim = None
         tcp_fk = arm.tcp                                   # TCP of the arm that is actually there
@@ -418,7 +422,7 @@ def main():
         from mujoco import viewer as mj_viewer        # (a plain 'import mujoco.viewer' here would make mujoco local)
         viewer = mj_viewer.launch_passive(m, d)
     res = []
-    n_skip = 0                                    # UR5e: FR3 starts without a UR5e twin (failures)
+    n_skip = 0                                    # new arm: FR3 starts without a twin pose (failures)
     for ep in range(args.episodes):
         if args.only is not None and ep not in args.only:
             if not ds_eps:
@@ -446,8 +450,8 @@ def main():
         d.qpos[o_adr:o_adr + 3] = cube_np; d.qpos[o_adr + 3:o_adr + 7] = cq
         if UR:
             q0 = arm.start(cube_np, sample_random_init, HOME_Q, INIT_SAMPLE_FRACTION, N_COLLISION_CHECK_TRIES)
-            if q0 is None:                     # the FR3 start has no elbow-up, table-clear UR5e twin: a failure
-                print(f"  ep{ep:2d}: fail     no UR5e start pose for this FR3 start (counted as failure)", flush=True)
+            if q0 is None:                     # the FR3 start has no elbow-up, table-clear twin pose: a failure
+                print(f"  ep{ep:2d}: fail     no {args.robot} start pose for this FR3 start (counted as failure)", flush=True)
                 n_skip += 1
                 continue
         else:
@@ -723,12 +727,12 @@ def main():
     if len(ye):
         print(f"  placement yaw (episodes with the cube < 20 mm from the place point): median {np.median(ye):.1f} deg, "
               f"p90 {np.percentile(ye, 90):.1f} deg, within {args.succ_yaw_deg:.0f} deg {100 * np.mean(ye < args.succ_yaw_deg):.0f}%")
-    print(f"\n==> {'UR5e + 2F-85 ZERO-SHOT' if UR else 'FR3'} pick-and-place VISION (MuJoCo), n={len(res)}: grasp {100 * gr:.0f}%  success@{args.succ_mm:.0f}mm "
+    print(f"\n==> {args.robot + ' ZERO-SHOT' if UR else 'FR3'} pick-and-place VISION (MuJoCo), n={len(res)}: grasp {100 * gr:.0f}%  success@{args.succ_mm:.0f}mm "
           f"& yaw<{args.succ_yaw_deg:.0f}deg {100 * s:.0f}% ({ks}/{len(res)}, 95% CI {lo:.0f}-{hi:.0f}%)  [success@20mm, no yaw: {s20:.0f}%]  place error median "
           f"{np.median(e):.1f} mm, p90 {np.percentile(e, 90):.1f} mm")
     if UR:
         lo2, hi2 = wilson(ks, len(res) + n_skip)
-        print(f"    UR5e: {n_skip} FR3 start poses had no elbow-up UR5e twin; counting them as failures: success "
+        print(f"    {args.robot}: {n_skip} FR3 start poses had no elbow-up twin pose; counting them as failures: success "
               f"{100 * ks / max(1, len(res) + n_skip):.0f}% ({ks}/{len(res) + n_skip}, 95% CI {lo2:.0f}-{hi2:.0f}%)"
               f"  <- compare this one with the FR3 run (same targets, same start poses)")
 

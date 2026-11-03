@@ -68,12 +68,19 @@ ap.add_argument("--elbow_up", action="store_true",
                 help="train only on new-arm poses with |swivel| < 90 deg (the branch the arm is deployed in)")
 ap.add_argument("--refine", type=int, default=5,
                 help="evaluation also reports g + this many TCP-IK steps (the learned pose as the IK seed)")
+ap.add_argument("--seed", type=int, default=None,
+                help="seed for the pose sampling, the split and the training (None = not seeded, old behaviour)")
+ap.add_argument("--cache_tag", default="",
+                help="appended to the pair-cache file name (a new arm / a clean rerun builds its own pairs)")
 args = ap.parse_args()
+if args.seed is not None:
+    import random
+    random.seed(args.seed); np.random.seed(args.seed); torch.manual_seed(args.seed); torch.cuda.manual_seed_all(args.seed)
 DEV = "cuda" if torch.cuda.is_available() else "cpu"
 MM_PER_LATENT = 347.0
 S_PSI = math.radians(args.s_psi_deg)
 S_Z = args.s_p * 1000.0 / MM_PER_LATENT
-CACHE = os.path.join(R, "cache", f"posture_pairs_{args.robot}_u{args.n_uniform}_t{args.n_tabletop}_p{args.n_pool}.pt")
+CACHE = os.path.join(R, "cache", f"posture_pairs_{args.robot}_u{args.n_uniform}_t{args.n_tabletop}_p{args.n_pool}{args.cache_tag}.pt")
 CKPT = os.path.join(R, "checkpoints", f"stage2_posture_{args.robot}{args.tag}.pt")
 
 
@@ -286,7 +293,9 @@ def main():
             best = val
             torch.save({"state_dict": g.state_dict(), "config": {"robot": args.robot, "d_in": D["xn"].shape[1],
                         "s_p": args.s_p, "s_r": args.s_r, "s_psi_deg": args.s_psi_deg,
-                        "posture_term": args.posture_term, "s_k": args.s_k}}, CKPT)
+                        "posture_term": args.posture_term, "s_k": args.s_k, "elbow_up": args.elbow_up,
+                        "seed": args.seed, "lam_phys": args.lam_phys, "lam_smooth": args.lam_smooth,
+                        "epochs": args.epochs, "lr": args.lr}}, CKPT)
             msg += "  -> best"
         print(msg, flush=True)
     print(f"[done] {CKPT}")

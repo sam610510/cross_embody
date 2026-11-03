@@ -25,20 +25,13 @@ fr3:
     - [0.0, 1.0, 0.0]
     - [0.0, 0.0, 1.0]
 
-# --- 模板:UR5e (6轴),URDF 到位后填写 ---
-# ur5e:
-#   urdf: urdfs/ur5e/ur5e.urdf
-#   root_link: base_link
-#   arm_dof: 6
-#   key_links:
-#     shoulder: shoulder_link      # 待确认
-#     elbow:    forearm_link       # 待确认
-#     wrist:    wrist_2_link       # 待确认
-#     ee:       tool0              # 待确认 (UR 的 TCP frame)
-#   base_rotation:                 # UR base 轴向若不同,在此填固定旋转
-#     - [1.0, 0.0, 0.0]
-#     - [0.0, 1.0, 0.0]
-#     - [0.0, 0.0, 1.0]
+ur5e_menagerie:
+  mjcf: "{menagerie}/universal_robots_ur5e/ur5e.xml"
+  gripper: {mjcf: "{menagerie}/robotiq_2f85/2f85.xml", attach_site: attachment_site, tcp_site: pinch}
+  arm_dof: 6
+  key_links: {shoulder: upper_arm_link, elbow: forearm_link, wrist: wrist_1_link, ee: tcp}
+  ee_rotation: [[0.70710678, 0.70710678, 0], [-0.70710678, 0.70710678, 0], [0, 0, 1]]
+  swivel_links: {shoulder: shoulder_link, elbow: forearm_link, wrist: wrist_1_link}
 
 # --- 模板:5轴机器人 (如 SO-100),待确认 DoF ---
 # so100:

@@ -33,6 +33,18 @@ ur5e_menagerie:
   ee_rotation: [[0.70710678, 0.70710678, 0], [-0.70710678, 0.70710678, 0], [0, 0, 1]]
   swivel_links: {shoulder: shoulder_link, elbow: forearm_link, wrist: wrist_1_link}
 
+kuka_iiwa14:
+  mjcf: "{menagerie}/kuka_iiwa_14/iiwa14.xml"
+  gripper: {mjcf: "{menagerie}/robotiq_2f85/2f85.xml", attach_site: attachment_site, tcp_site: pinch}
+  arm_dof: 7
+  key_links: {shoulder: link2, elbow: link4, wrist: link6, ee: tcp}
+  swivel_links: {shoulder: link2, elbow: link4, wrist: link6}
+  ee_rotation: [[0.70710678, 0.70710678, 0], [-0.70710678, 0.70710678, 0], [0, 0, 1]]   # calib_ee_rotation.py
+  vel_limits: [1.483, 1.483, 1.745, 1.309, 2.269, 2.356, 2.356]   # iiwa14 data sheet (85 85 100 75 130 135 135 deg/s)
+  tau_max: [320, 320, 176, 176, 110, 40, 40]                     # iiwa14 data sheet [Nm]
+  ik_seed: [0.0, 0.785398, 0.0, -1.5708, 0.0, 0.0, 0.0]          # iiwa14.xml keyframe "home"
+  branch_joints: [3, 5]                                          # joint4 (elbow) and joint6 (wrist) keep their sign
+  
 # --- 模板:5轴机器人 (如 SO-100),待确认 DoF ---
 # so100:
 #   urdf: urdfs/so100/so100.urdf

@@ -62,6 +62,12 @@ if max(err) > 2.0:
     raise SystemExit("FK check FAILED (> 2 mm): fix configs/robots.yaml before aligning")
 EOF
 
+echo "==== 1b orientation check (ee_rotation vs the FR3 convention)"
+python scripts/calib_ee_rotation.py --arm "$ARM" 2>&1 | tee "logs/calib_ee_rotation_${ARM}.log" | grep -E "fr3\]|required|ee_rotation:"
+OFF=$(grep -oE "[0-9.]+ deg from the current entry" "logs/calib_ee_rotation_${ARM}.log" | awk '{print $1}' | sort -g | head -1)
+[ -n "$OFF" ] || { echo "!! orientation check failed to run"; exit 1; }
+awk -v o="$OFF" 'BEGIN{exit !(o < 2.0)}' || { echo "!! ee_rotation is ${OFF} deg off the FR3 convention: put the printed ee_rotation into robots.yaml"; exit 1; }
+
 echo "==== 2/3 Stage 2 alignment -> $PCK"
 if [ -f "$PCK" ]; then
   echo "!! $PCK exists -- refusing to overwrite (move it or use another TAG)"; exit 1
